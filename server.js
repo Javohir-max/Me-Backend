@@ -37,6 +37,10 @@ const s3 = new S3Client({
 });
 
 
+function getPublicUrl(fileName) {
+    return `${process.env.S3_ENDPOINT}/${process.env.S3_BUCKET}/${fileName}`;
+}
+
 // Create (POST) — загрузка фото
 app.post('/photos', upload.single('image'), async (req, res) => {
     console.log("📩 Получен запрос на загрузку фото");
@@ -46,17 +50,9 @@ app.post('/photos', upload.single('image'), async (req, res) => {
         return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    console.log("✅ Файл получен:", {
-        originalname: req.file.originalname,
-        mimetype: req.file.mimetype,
-        size: req.file.size
-    });
-
     try {
         const fileName = crypto.randomBytes(16).toString('hex') + '.' + req.file.originalname.split('.').pop();
         
-        console.log("📦 Загружаем в S3:", fileName);
-
         await s3.send(new PutObjectCommand({
             Bucket: process.env.S3_BUCKET,
             Key: fileName,
@@ -64,16 +60,15 @@ app.post('/photos', upload.single('image'), async (req, res) => {
             ContentType: req.file.mimetype
         }));
 
-        console.log("✅ Файл загружен в S3");
+        const fileUrl = getPublicUrl(fileName);
 
         const photoDoc = {
             fileName,
+            url: fileUrl,
             createdAt: new Date()
         };
 
         const result = await db.collection('photos').insertOne(photoDoc);
-        console.log("✅ Запись добавлена в MongoDB:", result.insertedId);
-
         res.json({ id: result.insertedId, ...photoDoc });
 
     } catch (err) {
@@ -86,7 +81,11 @@ app.post('/photos', upload.single('image'), async (req, res) => {
 // Read (GET) — получить список фото
 app.get('/photos', async (req, res) => {
     const photos = await db.collection('photos').find().toArray();
-    res.json(photos);
+    const updated = photos.map(p => ({
+        ...p,
+        url: p.url || getPublicUrl(p.fileName)
+    }));
+    res.json(updated);
 });
 
 // Update (PUT) — обновить документ
