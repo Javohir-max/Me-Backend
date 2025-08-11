@@ -8,14 +8,14 @@ const { S3Client, PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/cl
 const crypto = require('crypto');
 
 const app = express();
-app.use(cors({ origin: '*' })); // для теста всем разрешаем
+app.use(cors({ origin: '*' }));
 app.use(express.json());
 
-// Multer для загрузки файлов
+// Multer для загрузки в память
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
-// Подключение к MongoDB
+// MongoDB
 const client = new MongoClient(process.env.MONGODB_URI);
 let db;
 async function connectDB() {
@@ -25,7 +25,7 @@ async function connectDB() {
 }
 connectDB().catch(console.error);
 
-// S3 client (Supabase Storage)
+// S3 (Supabase Storage)
 const s3 = new S3Client({
     region: process.env.S3_REGION,
     endpoint: process.env.S3_ENDPOINT,
@@ -36,23 +36,20 @@ const s3 = new S3Client({
     forcePathStyle: true
 });
 
-
+// Функция генерации публичного URL
 function getPublicUrl(fileName) {
-    return `${process.env.S3_ENDPOINT}/${process.env.S3_BUCKET}/${fileName}`;
+    return `https://salusvpkrnwtizpkfudb.supabase.co/storage/v1/object/public/${process.env.S3_BUCKET}/${fileName}`;
 }
 
-// Create (POST) — загрузка фото
+// POST — загрузка фото
 app.post('/photos', upload.single('image'), async (req, res) => {
-    console.log("📩 Получен запрос на загрузку фото");
-
     if (!req.file) {
-        console.error("❌ Файл не передан");
         return res.status(400).json({ error: 'No file uploaded' });
     }
 
     try {
         const fileName = crypto.randomBytes(16).toString('hex') + '.' + req.file.originalname.split('.').pop();
-        
+
         await s3.send(new PutObjectCommand({
             Bucket: process.env.S3_BUCKET,
             Key: fileName,
@@ -60,43 +57,34 @@ app.post('/photos', upload.single('image'), async (req, res) => {
             ContentType: req.file.mimetype
         }));
 
-        const fileUrl = getPublicUrl(fileName);
-
         const photoDoc = {
             fileName,
-            url: fileUrl,
             createdAt: new Date()
         };
 
         const result = await db.collection('photos').insertOne(photoDoc);
-        res.json({ id: result.insertedId, ...photoDoc });
+
+        const responseObj = {
+            id: result.insertedId.toString(),
+            fileName: fileName,
+            url: `https://${process.env.S3_ENDPOINT}/photos/${fileName}`,
+            date: photoDoc.createdAt
+        };
+
+        res.json(responseObj);
 
     } catch (err) {
-        console.error("💥 Ошибка при загрузке фото:", err);
-        res.status(500).json({ error: err.message, stack: err.stack });
+        res.status(500).json({ error: err.message });
     }
 });
 
-
-// Read (GET) — получить список фото
+// GET — список фото
 app.get('/photos', async (req, res) => {
     const photos = await db.collection('photos').find().toArray();
-    const updated = photos.map(p => ({
-        ...p,
-        url: p.url || getPublicUrl(p.fileName)
-    }));
-    res.json(updated);
+    res.json(photos);
 });
 
-// Update (PUT) — обновить документ
-app.put('/photos/:id', async (req, res) => {
-    const { id } = req.params;
-    const update = req.body;
-    await db.collection('photos').updateOne({ _id: new ObjectId(id) }, { $set: update });
-    res.json({ message: 'Updated' });
-});
-
-// Delete (DELETE) — удалить фото
+// DELETE — удаление фото
 app.delete('/photos/:id', async (req, res) => {
     const { id } = req.params;
     const photo = await db.collection('photos').findOne({ _id: new ObjectId(id) });
@@ -111,6 +99,5 @@ app.delete('/photos/:id', async (req, res) => {
     res.json({ message: 'Deleted' });
 });
 
-// Запуск сервера
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
