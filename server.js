@@ -6,9 +6,9 @@ const { MongoClient, ObjectId } = require('mongodb');
 const multer = require('multer');
 const { S3Client, PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const crypto = require('crypto');
-app.use(cors({ origin: '*' })); // для теста всем разрешаем
 
 const app = express();
+app.use(cors({ origin: '*' })); // для теста всем разрешаем
 app.use(express.json());
 
 // Multer для загрузки файлов
