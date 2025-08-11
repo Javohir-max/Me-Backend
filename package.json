@@ -9,6 +9,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.864.0",
     "@supabase/supabase-js": "^2.39.6",
+    "cors": "^2.8.5",
     "dotenv": "^16.6.1",
     "express": "^4.21.2",
     "mongodb": "^6.18.0",
