@@ -36,10 +36,27 @@ const s3 = new S3Client({
     forcePathStyle: true
 });
 
+
 // Create (POST) — загрузка фото
 app.post('/photos', upload.single('image'), async (req, res) => {
+    console.log("📩 Получен запрос на загрузку фото");
+
+    if (!req.file) {
+        console.error("❌ Файл не передан");
+        return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    console.log("✅ Файл получен:", {
+        originalname: req.file.originalname,
+        mimetype: req.file.mimetype,
+        size: req.file.size
+    });
+
     try {
         const fileName = crypto.randomBytes(16).toString('hex') + '.' + req.file.originalname.split('.').pop();
+        
+        console.log("📦 Загружаем в S3:", fileName);
+
         await s3.send(new PutObjectCommand({
             Bucket: process.env.S3_BUCKET,
             Key: fileName,
@@ -47,17 +64,24 @@ app.post('/photos', upload.single('image'), async (req, res) => {
             ContentType: req.file.mimetype
         }));
 
+        console.log("✅ Файл загружен в S3");
+
         const photoDoc = {
             fileName,
             createdAt: new Date()
         };
+
         const result = await db.collection('photos').insertOne(photoDoc);
+        console.log("✅ Запись добавлена в MongoDB:", result.insertedId);
+
         res.json({ id: result.insertedId, ...photoDoc });
+
     } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: 'Upload failed' });
+        console.error("💥 Ошибка при загрузке фото:", err);
+        res.status(500).json({ error: err.message, stack: err.stack });
     }
 });
+
 
 // Read (GET) — получить список фото
 app.get('/photos', async (req, res) => {
