@@ -1,10 +1,12 @@
-// index.js
+// server.js
 require('dotenv').config();
 const express = require('express');
+const cors = require('cors');
 const { MongoClient, ObjectId } = require('mongodb');
 const multer = require('multer');
 const { S3Client, PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const crypto = require('crypto');
+app.use(cors({ origin: '*' })); // для теста всем разрешаем
 
 const app = express();
 app.use(express.json());
