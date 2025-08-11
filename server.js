@@ -81,7 +81,15 @@ app.post('/photos', upload.single('image'), async (req, res) => {
 // GET — список фото
 app.get('/photos', async (req, res) => {
     const photos = await db.collection('photos').find().toArray();
-    res.json(photos);
+
+    const formattedPhotos = photos.map(p => ({
+        id: p._id.toString(),
+        fileName: p.fileName,
+        url: `https://${process.env.S3_ENDPOINT}/photos/${p.fileName}`,
+        date: p.createdAt
+    }));
+
+    res.json(formattedPhotos);
 });
 
 // DELETE — удаление фото
