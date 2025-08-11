@@ -67,7 +67,7 @@ app.post('/photos', upload.single('image'), async (req, res) => {
         const responseObj = {
             id: result.insertedId.toString(),
             fileName: fileName,
-            url: `https://${process.env.S3_ENDPOINT}/photos/${fileName}`,
+            url: `${process.env.S3_ENDPOINT}/photos/${fileName}`,
             date: photoDoc.createdAt
         };
 
@@ -85,7 +85,7 @@ app.get('/photos', async (req, res) => {
     const formattedPhotos = photos.map(p => ({
         id: p._id.toString(),
         fileName: p.fileName,
-        url: `https://${process.env.S3_ENDPOINT}/photos/${p.fileName}`,
+        url: `${process.env.S3_ENDPOINT}/photos/${p.fileName}`,
         date: p.createdAt
     }));
 
