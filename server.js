@@ -13,7 +13,7 @@ app.use(express.json());
 
 // Multer для загрузки в память
 const storage = multer.memoryStorage();
-const upload = multer({ storage: storage });
+const upload = multer({ storage });
 
 // MongoDB
 const client = new MongoClient(process.env.MONGODB_URI);
@@ -28,7 +28,7 @@ connectDB().catch(console.error);
 // S3 (Supabase Storage)
 const s3 = new S3Client({
     region: process.env.S3_REGION,
-    endpoint: process.env.S3_ENDPOINT,
+    endpoint: process.env.S3_ENDPOINT, // используется ТОЛЬКО AWS SDK
     credentials: {
         accessKeyId: process.env.S3_ACCESS_KEY_ID,
         secretAccessKey: process.env.S3_SECRET_ACCESS_KEY
@@ -36,9 +36,9 @@ const s3 = new S3Client({
     forcePathStyle: true
 });
 
-// Функция генерации публичного URL
+// Генерация публичного URL
 function getPublicUrl(fileName) {
-    return `https://salusvpkrnwtizpkfudb.supabase.co/storage/v1/object/public/${process.env.S3_BUCKET}/${fileName}`;
+    return `https://${process.env.SUPABASE_PROJECT}.supabase.co/storage/v1/object/public/${process.env.S3_BUCKET}/${fileName}`;
 }
 
 // POST — загрузка фото
@@ -67,7 +67,7 @@ app.post('/photos', upload.single('image'), async (req, res) => {
         const responseObj = {
             id: result.insertedId.toString(),
             fileName: fileName,
-            url: `${process.env.S3_ENDPOINT}/photos/${fileName}`,
+            url: getPublicUrl(fileName),
             date: photoDoc.createdAt
         };
 
@@ -85,7 +85,7 @@ app.get('/photos', async (req, res) => {
     const formattedPhotos = photos.map(p => ({
         id: p._id.toString(),
         fileName: p.fileName,
-        url: `${process.env.S3_ENDPOINT}/photos/${p.fileName}`,
+        url: getPublicUrl(p.fileName),
         date: p.createdAt
     }));
 
