@@ -47,14 +47,15 @@ function getPublicUrl(fileName) {
 
 // Автоинкремент ID
 async function getNextId() {
-    const counter = await db.collection('counters').findOneAndUpdate({
-        _id: "photoid"
-    }, {
-        $inc: { seq: 1 }
-    }, {
-        returnDocument: 'after'
-    });
-    console.log(counter);
+    const counter = await db.collection('counters').findOneAndUpdate(
+        { _id: "photoid"}, 
+        { $inc: { seq: 1 } }, 
+        { returnDocument: 'after', upsert: true }
+    );
+    if (!result.value) {
+        await db.collection('counters').insertOne({ _id: sequenceName, seq: 1 })
+        return 1
+    }
 
     return counter.value.seq;
 }
@@ -65,7 +66,6 @@ app.post('/photos', upload.single('image'), async(req, res) => {
         if (!req.file) {
             return res.status(400).json({ error: 'Нет файла' });
         }
-        console.log(req.file);
 
         const fileName = Date.now() + '-' + req.file.originalname;
 
