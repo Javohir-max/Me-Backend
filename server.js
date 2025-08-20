@@ -23,11 +23,7 @@ async function connectDB() {
     db = client.db(process.env.DB_NAME || 'testdb');
 
     // Коллекция для автоинкремента
-    await db.collection('counters').updateOne(
-        { _id: "photoid" },
-        { $setOnInsert: { seq: 0 } },
-        { upsert: true }
-    );
+    await db.collection('counters').updateOne({ _id: "photoid" }, { $setOnInsert: { seq: 0 } }, { upsert: true });
 
     console.log('✅ MongoDB connected');
 }
@@ -50,23 +46,19 @@ function getPublicUrl(fileName) {
 }
 
 // Автоинкремент ID
-async function getNextId() {
-    const counter = await db.collection('counters').findOneAndUpdate(
-        { _id: "photoid" },
-        { $inc: { seq: 1 } },
-        { returnDocument: 'after', upsert: true }
-    );
+async function getNextId(seqname) {
+    const counter = await db.collection('counters').findOneAndUpdate({ _id: seqname }, { $inc: { seq: 1 } }, { returnDocument: 'after', upsert: true });
     return counter.value.seq;
 }
 
 // === POST — загрузка фото ===
-app.post('/photos', upload.single('image'), async (req, res) => {
+app.post('/photos', upload.single('image'), async(req, res) => {
     try {
         if (!req.file) {
             return res.status(400).json({ error: 'Нет файла' });
         }
         console.log(req.file);
-        
+
         const fileName = Date.now() + '-' + req.file.originalname;
 
         await s3.send(new PutObjectCommand({
@@ -76,7 +68,7 @@ app.post('/photos', upload.single('image'), async (req, res) => {
             ContentType: req.file.mimetype
         }));
 
-        const newId = await getNextId();
+        const newId = await getNextId("photos");
         const createdAt = new Date();
 
         const photo = {
@@ -98,7 +90,7 @@ app.post('/photos', upload.single('image'), async (req, res) => {
 });
 
 // === GET — список фото ===
-app.get('/photos', async (req, res) => {
+app.get('/photos', async(req, res) => {
     const photos = await db.collection('photos').find().toArray();
 
     const formatted = photos.map(p => ({
@@ -112,15 +104,11 @@ app.get('/photos', async (req, res) => {
 });
 
 // === PUT — обновление названия ===
-app.put('/photos/:id', async (req, res) => {
+app.put('/photos/:id', async(req, res) => {
     const { id } = req.params;
     const { name } = req.body;
 
-    const result = await db.collection('photos').findOneAndUpdate(
-        { id: parseInt(id) },
-        { $set: { name } },
-        { returnDocument: "after" }
-    );
+    const result = await db.collection('photos').findOneAndUpdate({ id: parseInt(id) }, { $set: { name } }, { returnDocument: "after" });
 
     if (!result.value) return res.status(404).json({ error: "Not found" });
 
@@ -133,7 +121,7 @@ app.put('/photos/:id', async (req, res) => {
 });
 
 // === DELETE — удаление ===
-app.delete('/photos/:id', async (req, res) => {
+app.delete('/photos/:id', async(req, res) => {
     const { id } = req.params;
     const photo = await db.collection('photos').findOne({ id: parseInt(id) });
     if (!photo) return res.status(404).json({ error: 'Not found' });
