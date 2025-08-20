@@ -11,6 +11,7 @@ const app = express();
 app.use(cors({ origin: '*' }));
 app.use(express.json());
 
+// Multer для загрузки в память
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
@@ -21,7 +22,7 @@ async function connectDB() {
     await client.connect();
     db = client.db(process.env.DB_NAME || 'testdb');
 
-    // создаём коллекцию для счётчиков (если её нет)
+    // Коллекция для автоинкремента
     await db.collection('counters').updateOne(
         { _id: "photoid" },
         { $setOnInsert: { seq: 0 } },
@@ -48,7 +49,7 @@ function getPublicUrl(fileName) {
     return `https://${process.env.SUPABASE_PROJECT}.supabase.co/storage/v1/object/public/${process.env.S3_BUCKET}/${fileName}`;
 }
 
-// Функция для получения нового числового ID
+// Автоинкремент ID
 async function getNextId() {
     const counter = await db.collection('counters').findOneAndUpdate(
         { _id: "photoid" },
@@ -58,81 +59,65 @@ async function getNextId() {
     return counter.value.seq;
 }
 
-// POST — загрузка фото
+// === POST — загрузка фото ===
 app.post('/photos', upload.single('image'), async (req, res) => {
-  try {
-    console.log('=== ЗАПРОС ПРИШЁЛ ===')
-    console.log('req.file:', req.file)   // файл
-    console.log('req.body:', req.body)   // name
-    
-    if (!req.file) {
-      console.log('❌ Нет файла в req.file')
-      return res.status(400).json({ error: 'Нет файла' })
+    try {
+        if (!req.file) {
+            return res.status(400).json({ error: 'Нет файла' });
+        }
+
+        const fileName = Date.now() + '-' + req.file.originalname;
+
+        await s3.send(new PutObjectCommand({
+            Bucket: process.env.S3_BUCKET,
+            Key: fileName,
+            Body: req.file.buffer,
+            ContentType: req.file.mimetype
+        }));
+
+        const newId = await getNextId();
+        const createdAt = new Date();
+
+        const photo = {
+            id: newId,
+            name: req.body.name || null,
+            fileName,
+            url: getPublicUrl(fileName),
+            date: createdAt
+        };
+
+        await db.collection('photos').insertOne(photo);
+
+        res.json(photo);
+
+    } catch (err) {
+        console.error('❌ Ошибка при загрузке фото:', err);
+        res.status(500).json({ error: 'Ошибка сервера', details: err.message });
     }
+});
 
-    const fileName = Date.now() + '-' + req.file.originalname
-    console.log('Сохраняем как:', fileName)
-
-    await s3.send(new PutObjectCommand({
-      Bucket: process.env.S3_BUCKET,
-      Key: fileName,
-      Body: req.file.buffer,
-      ContentType: req.file.mimetype
-    }))
-    console.log('✅ Файл загружен в bucket')
-
-    // Генерируем URL для файла
-    const url = `https://${process.env.S3_BUCKET}.supabase.co/storage/v1/object/public/photos/${fileName}`
-
-    // Находим последний id
-    const lastPhoto = await db.collection('photos')
-      .find({})
-      .sort({ id: -1 })
-      .limit(1)
-      .toArray()
-
-    const newId = lastPhoto.length > 0 ? lastPhoto[0].id + 1 : 1
-
-    const photo = {
-      id: newId,
-      name: req.body.name,
-      url,
-      date: new Date()
-    }
-
-    await db.collection('photos').insertOne(photo)
-    console.log('✅ Фото сохранено в БД:', photo)
-
-    res.json(photo) // возвращаем без _id
-  } catch (err) {
-    console.error('❌ Ошибка при загрузке фото:', err)
-    res.status(500).json({ error: 'Ошибка сервера', details: err.message })
-  }
-})
-
-
-// GET — список фото
+// === GET — список фото ===
 app.get('/photos', async (req, res) => {
     const photos = await db.collection('photos').find().toArray();
 
-    const formattedPhotos = photos.map(p => ({
+    const formatted = photos.map(p => ({
         id: p.id,
         name: p.name,
         url: getPublicUrl(p.fileName),
-        date: p.createdAt
+        date: p.date
     }));
 
-    res.json(formattedPhotos);
+    res.json(formatted);
 });
 
-// PUT — обновить название фото
+// === PUT — обновление названия ===
 app.put('/photos/:id', async (req, res) => {
     const { id } = req.params;
     const { name } = req.body;
 
     const result = await db.collection('photos').findOneAndUpdate(
         { id: parseInt(id) },
-        { $set: { name: name } },
+        { $set: { name } },
         { returnDocument: "after" }
     );
 
@@ -142,11 +127,11 @@ app.put('/photos/:id', async (req, res) => {
         id: result.value.id,
         name: result.value.name,
         url: getPublicUrl(result.value.fileName),
-        date: result.value.createdAt
+        date: result.value.date
     });
 });
 
-// DELETE — удаление фото
+// === DELETE — удаление ===
 app.delete('/photos/:id', async (req, res) => {
     const { id } = req.params;
     const photo = await db.collection('photos').findOne({ id: parseInt(id) });
@@ -161,5 +146,6 @@ app.delete('/photos/:id', async (req, res) => {
     res.json({ message: 'Deleted' });
 });
 
+// === Запуск сервера ===
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
