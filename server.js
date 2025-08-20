@@ -69,7 +69,7 @@ app.post('/photos', upload.single('image'), async(req, res) => {
         };
 
         const result = await db.collection('photos').insertOne(photo);
-
+        console.log(result); 
         res.json({
             success: true,
             id: result.insertedId,
