@@ -52,8 +52,8 @@ async function getNextId() {
         { $inc: { seq: 1 } }, 
         { returnDocument: 'after', upsert: true }
     );
-    if (!result.value) {
-        await db.collection('counters').insertOne({ _id: sequenceName, seq: 1 })
+    if (!counter.value) {
+        await db.collection('counters').insertOne({ _id: "photoid", seq: 1 })
         return 1
     }
 
@@ -83,7 +83,7 @@ app.post('/photos', upload.single('image'), async(req, res) => {
 
         const photo = {
             id: newId,
-            name: req.body.name || null,
+            name: req.body.name || "Image",
             fileName,
             url: getPublicUrl(fileName),
             date: createdAt
