@@ -60,42 +60,42 @@ async function getNextId() {
 
 // POST — загрузка фото
 app.post('/photos', upload.single('image'), async (req, res) => {
+  try {
+    console.log('=== ЗАПРОС ПРИШЁЛ ===')
+    console.log('req.file:', req.file)   // покажет файл
+    console.log('req.body:', req.body)   // покажет name
+    
     if (!req.file) {
-        return res.status(400).json({ error: 'No file uploaded' });
+      console.log('❌ Нет файла в req.file')
+      return res.status(400).json({ error: 'Нет файла' })
     }
 
-    try {
-        const fileName = crypto.randomBytes(16).toString('hex') + '.' + req.file.originalname.split('.').pop();
+    const fileName = Date.now() + '-' + req.file.originalname
+    console.log('Сохраняем как:', fileName)
 
-        await s3.send(new PutObjectCommand({
-            Bucket: process.env.S3_BUCKET,
-            Key: fileName,
-            Body: req.file.buffer,
-            ContentType: req.file.mimetype
-        }));
+    await s3.send(new PutObjectCommand({
+      Bucket: process.env.S3_BUCKET,
+      Key: fileName,
+      Body: req.file.buffer,
+      ContentType: req.file.mimetype
+    }))
+    console.log('✅ Файл загружен в bucket')
 
-        const newId = await getNextId();
-
-        const photoDoc = {
-            id: newId,
-            fileName,
-            name: req.body.name || "Untitled", // можно передавать название
-            createdAt: new Date()
-        };
-
-        await db.collection('photos').insertOne(photoDoc);
-
-        res.json({
-            id: photoDoc.id,
-            name: photoDoc.name,
-            url: getPublicUrl(fileName),
-            date: photoDoc.createdAt
-        });
-
-    } catch (err) {
-        res.status(500).json({ error: err.message });
+    const photo = {
+      fileName,
+      name: req.body.name,
+      createdAt: new Date()
     }
-});
+
+    const result = await db.collection('photos').insertOne(photo)
+    console.log('✅ Фото сохранено в БД:', result.insertedId)
+
+    res.json({ _id: result.insertedId, ...photo })
+  } catch (err) {
+    console.error('❌ Ошибка при загрузке фото:', err)
+    res.status(500).json({ error: 'Ошибка сервера', details: err.message })
+  }
+})
 
 // GET — список фото
 app.get('/photos', async (req, res) => {
