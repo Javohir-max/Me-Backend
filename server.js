@@ -54,7 +54,7 @@ async function getNextId() {
     const counter = await db.collection('counters').findOneAndUpdate(
         { _id: "photoid" },
         { $inc: { seq: 1 } },
-        { returnDocument: "after" }
+        { returnDocument: 'after', upsert: true }
     );
     return counter.value.seq;
 }
@@ -65,7 +65,8 @@ app.post('/photos', upload.single('image'), async (req, res) => {
         if (!req.file) {
             return res.status(400).json({ error: 'Нет файла' });
         }
-
+        console.log(req.file);
+        
         const fileName = Date.now() + '-' + req.file.originalname;
 
         await s3.send(new PutObjectCommand({
