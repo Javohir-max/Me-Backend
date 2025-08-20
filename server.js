@@ -11,7 +11,6 @@ const app = express();
 app.use(cors({ origin: '*' }));
 app.use(express.json());
 
-// Multer для загрузки в память
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
@@ -21,6 +20,14 @@ let db;
 async function connectDB() {
     await client.connect();
     db = client.db(process.env.DB_NAME || 'testdb');
+
+    // создаём коллекцию для счётчиков (если её нет)
+    await db.collection('counters').updateOne(
+        { _id: "photoid" },
+        { $setOnInsert: { seq: 0 } },
+        { upsert: true }
+    );
+
     console.log('✅ MongoDB connected');
 }
 connectDB().catch(console.error);
@@ -28,7 +35,7 @@ connectDB().catch(console.error);
 // S3 (Supabase Storage)
 const s3 = new S3Client({
     region: process.env.S3_REGION,
-    endpoint: process.env.S3_ENDPOINT, 
+    endpoint: process.env.S3_ENDPOINT,
     credentials: {
         accessKeyId: process.env.S3_ACCESS_KEY_ID,
         secretAccessKey: process.env.S3_SECRET_ACCESS_KEY
@@ -41,12 +48,12 @@ function getPublicUrl(fileName) {
     return `https://${process.env.SUPABASE_PROJECT}.supabase.co/storage/v1/object/public/${process.env.S3_BUCKET}/${fileName}`;
 }
 
-// Генерация автоинкрементного id
+// Функция для получения нового числового ID
 async function getNextId() {
     const counter = await db.collection('counters').findOneAndUpdate(
         { _id: "photoid" },
         { $inc: { seq: 1 } },
-        { upsert: true, returnDocument: "after" }
+        { returnDocument: "after" }
     );
     return counter.value.seq;
 }
@@ -71,22 +78,19 @@ app.post('/photos', upload.single('image'), async (req, res) => {
 
         const photoDoc = {
             id: newId,
-            title: req.body.title || 'Untitled',
             fileName,
+            name: req.body.name || "Untitled", // можно передавать название
             createdAt: new Date()
         };
 
         await db.collection('photos').insertOne(photoDoc);
 
-        const responseObj = {
+        res.json({
             id: photoDoc.id,
-            title: photoDoc.title,
-            fileName: fileName,
+            name: photoDoc.name,
             url: getPublicUrl(fileName),
             date: photoDoc.createdAt
-        };
-
-        res.json(responseObj);
+        });
 
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -99,8 +103,7 @@ app.get('/photos', async (req, res) => {
 
     const formattedPhotos = photos.map(p => ({
         id: p.id,
-        title: p.title,
-        fileName: p.fileName,
+        name: p.name,
         url: getPublicUrl(p.fileName),
         date: p.createdAt
     }));
@@ -108,23 +111,22 @@ app.get('/photos', async (req, res) => {
     res.json(formattedPhotos);
 });
 
-// PUT — обновление названия
+// PUT — обновить название фото
 app.put('/photos/:id', async (req, res) => {
     const { id } = req.params;
-    const { title } = req.body;
+    const { name } = req.body;
 
     const result = await db.collection('photos').findOneAndUpdate(
         { id: parseInt(id) },
-        { $set: { title } },
-        { returnDocument: 'after' }
+        { $set: { name: name } },
+        { returnDocument: "after" }
     );
 
-    if (!result.value) return res.status(404).json({ error: 'Not found' });
+    if (!result.value) return res.status(404).json({ error: "Not found" });
 
     res.json({
         id: result.value.id,
-        title: result.value.title,
-        fileName: result.value.fileName,
+        name: result.value.name,
         url: getPublicUrl(result.value.fileName),
         date: result.value.createdAt
     });
