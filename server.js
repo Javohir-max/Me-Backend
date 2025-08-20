@@ -48,12 +48,12 @@ function getPublicUrl(fileName) {
 // Автоинкремент ID
 async function getNextId() {
     const counter = await db.collection('counters').findOneAndUpdate(
-        { _id: "photoId" },              // уникальный идентификатор счётчика
-        { $inc: { seq: 1 } },            // увеличиваем seq на 1
-        { returnDocument: 'after', upsert: true } // если нет — создаём
+        { _id: "photoId" },
+        { $inc: { seq: 1 }, $setOnInsert: { seq: 1 } }, // если вставляется — сразу seq: 1
+        { returnDocument: 'after', upsert: true }
     );
 
-    return counter.value.seq || 1;
+    return counter.value.seq;
 }
 
 // === POST — загрузка фото ===
