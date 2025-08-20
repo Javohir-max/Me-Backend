@@ -45,17 +45,6 @@ function getPublicUrl(fileName) {
     return `https://${process.env.SUPABASE_PROJECT}.supabase.co/storage/v1/object/public/${process.env.S3_BUCKET}/${fileName}`;
 }
 
-// Автоинкремент ID
-async function getNextId() {
-    const counter = await db.collection('counters').findOneAndUpdate(
-        { _id: "photoId" },
-        { $inc: { seq: 1 }, $setOnInsert: { seq: 1 } }, // если вставляется — сразу seq: 1
-        { returnDocument: 'after', upsert: true }
-    );
-
-    return counter.value.seq;
-}
-
 // === POST — загрузка фото ===
 app.post('/photos', upload.single('image'), async(req, res) => {
     try {
@@ -72,22 +61,20 @@ app.post('/photos', upload.single('image'), async(req, res) => {
             ContentType: req.file.mimetype
         }));
 
-        const newId = await getNextId();
-        console.log(newId);
-
-        const createdAt = new Date();
-
         const photo = {
-            id: newId,
             name: req.body.name || "Image",
             fileName,
             url: getPublicUrl(fileName),
-            date: createdAt
+            date: new Date().toISOString()
         };
 
         await db.collection('photos').insertOne(photo);
 
-        res.json(photo);
+        res.json({
+            success: true,
+            id: result.insertedId, // MongoDB сам генерит _id
+            ...photo
+        });
 
     } catch (err) {
         console.error('❌ Ошибка при загрузке фото:', err);
