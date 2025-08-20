@@ -69,7 +69,6 @@ app.post('/photos', upload.single('image'), async(req, res) => {
         };
 
         const result = await db.collection('photos').insertOne(photo);
-        console.log(result); 
         res.json({
             success: true,
             id: result.insertedId,
@@ -87,7 +86,7 @@ app.get('/photos', async(req, res) => {
     const photos = await db.collection('photos').find().toArray();
 
     const formatted = photos.map(p => ({
-        id: p.id,
+        id: p._id,
         name: p.name,
         url: getPublicUrl(p.fileName),
         date: p.date
