@@ -115,7 +115,7 @@ app.put('/photos/:id', async(req, res) => {
 // === DELETE — удаление ===
 app.delete('/photos/:id', async(req, res) => {
     const { id } = req.params;
-    const photo = await db.collection('photos').findOne({ _id: parseInt(id) });
+    const photo = await db.collection('photos').findOne({ _id: new ObjectId(id) });
     if (!photo) return res.status(404).json({ error: 'Not found' });
 
     await s3.send(new DeleteObjectCommand({
@@ -123,7 +123,7 @@ app.delete('/photos/:id', async(req, res) => {
         Key: photo.fileName
     }));
 
-    await db.collection('photos').deleteOne({ _id: parseInt(id) });
+    await db.collection('photos').deleteOne({ _id: new ObjectId(id) });
     res.json({ message: 'Deleted' });
 });
 
