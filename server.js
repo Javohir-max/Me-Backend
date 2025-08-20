@@ -62,8 +62,8 @@ async function getNextId() {
 app.post('/photos', upload.single('image'), async (req, res) => {
   try {
     console.log('=== ЗАПРОС ПРИШЁЛ ===')
-    console.log('req.file:', req.file)   // покажет файл
-    console.log('req.body:', req.body)   // покажет name
+    console.log('req.file:', req.file)   // файл
+    console.log('req.body:', req.body)   // name
     
     if (!req.file) {
       console.log('❌ Нет файла в req.file')
@@ -81,21 +81,35 @@ app.post('/photos', upload.single('image'), async (req, res) => {
     }))
     console.log('✅ Файл загружен в bucket')
 
+    // Генерируем URL для файла
+    const url = `https://${process.env.S3_BUCKET}.supabase.co/storage/v1/object/public/photos/${fileName}`
+
+    // Находим последний id
+    const lastPhoto = await db.collection('photos')
+      .find({})
+      .sort({ id: -1 })
+      .limit(1)
+      .toArray()
+
+    const newId = lastPhoto.length > 0 ? lastPhoto[0].id + 1 : 1
+
     const photo = {
-      fileName,
+      id: newId,
       name: req.body.name,
-      createdAt: new Date()
+      url,
+      date: new Date()
     }
 
-    const result = await db.collection('photos').insertOne(photo)
-    console.log('✅ Фото сохранено в БД:', result.insertedId)
+    await db.collection('photos').insertOne(photo)
+    console.log('✅ Фото сохранено в БД:', photo)
 
-    res.json({ _id: result.insertedId, ...photo })
+    res.json(photo) // возвращаем без _id
   } catch (err) {
     console.error('❌ Ошибка при загрузке фото:', err)
     res.status(500).json({ error: 'Ошибка сервера', details: err.message })
   }
 })
+
 
 // GET — список фото
 app.get('/photos', async (req, res) => {
