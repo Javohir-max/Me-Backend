@@ -72,7 +72,7 @@ app.post('/photos', upload.single('image'), async(req, res) => {
 
         res.json({
             success: true,
-            id: result.insertedId, // MongoDB сам генерит _id
+            id: result.insertedId,
             ...photo
         });
 
