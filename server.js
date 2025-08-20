@@ -68,7 +68,7 @@ app.post('/photos', upload.single('image'), async(req, res) => {
             date: new Date().toISOString()
         };
 
-        await db.collection('photos').insertOne(photo);
+        const result = await db.collection('photos').insertOne(photo);
 
         res.json({
             success: true,
