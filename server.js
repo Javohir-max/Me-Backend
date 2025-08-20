@@ -46,8 +46,16 @@ function getPublicUrl(fileName) {
 }
 
 // Автоинкремент ID
-async function getNextId(seqname) {
-    const counter = await db.collection('counters').findOneAndUpdate({ _id: seqname }, { $inc: { seq: 1 } }, { returnDocument: 'after', upsert: true });
+async function getNextId() {
+    const counter = await db.collection('counters').findOneAndUpdate({
+        _id: "photoid"
+    }, {
+        $inc: { seq: 1 }
+    }, {
+        returnDocument: 'after'
+    });
+    console.log(counter);
+
     return counter.value.seq;
 }
 
@@ -68,7 +76,9 @@ app.post('/photos', upload.single('image'), async(req, res) => {
             ContentType: req.file.mimetype
         }));
 
-        const newId = await getNextId("photos");
+        const newId = await getNextId();
+        console.log(newId);
+
         const createdAt = new Date();
 
         const photo = {
