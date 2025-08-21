@@ -61,12 +61,11 @@ app.post('/photos', upload.single('image'), async(req, res) => {
             Body: req.file.buffer,
             ContentType: req.file.mimetype
         }));
-
         const photo = {
             name: req.body.name || "Image",
             fileName,
             url: getPublicUrl(fileName),
-            date: new Date().toISOString()
+            date: new Date().getTime()
         };
 
         const result = await db.collection('photos').insertOne(photo);
@@ -89,6 +88,7 @@ app.get('/photos', async(req, res) => {
     const formatted = photos.map(p => ({
         id: p._id.toString(),
         name: p.name,
+        fileName: p.fileName,
         url: getPublicUrl(p.fileName),
         date: p.date
     }));
@@ -101,7 +101,7 @@ app.put('/photos/:id', async(req, res) => {
     const { id } = req.params;
     const { name } = req.body;
 
-    const result = await db.collection('photos').findOneAndUpdate({ id: parseInt(id) }, { $set: { name } }, { returnDocument: "after" });
+    const result = await db.collection('photos').findOneAndUpdate({ _id: parseInt(id) }, { $set: { name } }, { returnDocument: "after" });
 
     if (!result.value) return res.status(404).json({ error: "Not found" });
 
